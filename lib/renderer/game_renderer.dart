@@ -57,6 +57,53 @@ class GameRenderer extends Component with HasGameReference<FlameGame> {
     }
 
     _renderEnemies(canvas, hits, width, height, halfH);
+
+    _renderCrosshair(canvas, width, height);
+
+    if (player.damageFlash > 0) {
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, width, height),
+        Paint()
+          ..color = Color.fromARGB(
+            (player.damageFlash * 100).toInt(),
+            255,
+            0,
+            0,
+          ),
+      );
+    }
+
+    if (player.hitFlash > 0) {
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, width, height),
+        Paint()
+          ..color = Color.fromARGB(
+            (player.hitFlash * 80).toInt(),
+            255,
+            255,
+            255,
+          ),
+      );
+    }
+
+    if (player.isDead) {
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, width, height),
+        Paint()..color = const Color(0xAA000000),
+      );
+    }
+  }
+
+  void _renderCrosshair(Canvas canvas, double width, double height) {
+    final paint = Paint()
+      ..color = const Color(0xCCFFFFFF)
+      ..strokeWidth = 1.5;
+
+    final cx = width / 2;
+    final cy = height / 2;
+
+    canvas.drawLine(Offset(cx - 10, cy), Offset(cx + 10, cy), paint);
+    canvas.drawLine(Offset(cx, cy - 10), Offset(cx, cy + 10), paint);
   }
 
   void _renderEnemies(
@@ -74,7 +121,6 @@ class GameRenderer extends Component with HasGameReference<FlameGame> {
       if (dist < 0.1) continue;
 
       var angleDiff = atan2(dy, dx) - player.angle;
-
       while (angleDiff > pi) angleDiff -= 2 * pi;
       while (angleDiff < -pi) angleDiff += 2 * pi;
 
@@ -92,10 +138,46 @@ class GameRenderer extends Component with HasGameReference<FlameGame> {
       final top = halfH - spriteH / 2;
       final left = screenCol - spriteW / 2;
 
-      final paint =
-          enemy.state == EnemyState.idle ? _enemyIdlePaint : _enemyActivePaint;
+      final Paint paint;
+      if (enemy.damageFlash > 0) {
+        paint = Paint()
+          ..color = Color.fromARGB(
+            255,
+            255,
+            (255 * (1 - enemy.damageFlash)).toInt(),
+            (255 * (1 - enemy.damageFlash)).toInt(),
+          );
+      } else {
+        paint = enemy.state == EnemyState.idle
+            ? _enemyIdlePaint
+            : _enemyActivePaint;
+      }
 
       canvas.drawRect(Rect.fromLTWH(left, top, spriteW, spriteH), paint);
+
+      _renderEnemyHpBar(canvas, left, top, spriteW, enemy.hp / Enemy.maxHp);
     }
+  }
+
+  void _renderEnemyHpBar(
+    Canvas canvas,
+    double left,
+    double top,
+    double width,
+    double hpPercent,
+  ) {
+    final barH = 4.0;
+    final barY = top - 8;
+
+    canvas.drawRect(
+      Rect.fromLTWH(left, barY, width, barH),
+      Paint()..color = const Color(0xFF333333),
+    );
+    final r = (255 * (1 - hpPercent)).toInt();
+    final g = (255 * hpPercent).toInt();
+    canvas.drawRect(
+      Rect.fromLTWH(left, barY, width * hpPercent, barH),
+      Paint()..color = Color.fromARGB(255, r, g, 0),
+    );
   }
 }

@@ -11,12 +11,14 @@ class Enemy {
   static const double _lostTimeout = 3.0;
   static const double _speed = 80.0;
   static const double _pathRefresh = 0.5;
+  static const double maxHp = 100.0;
 
   final MazeMap map;
   final Pathfinder _pathfinder;
 
   double x;
   double y;
+  double hp = maxHp;
 
   EnemyState state = EnemyState.idle;
   double _lostTimer = 0;
@@ -24,10 +26,23 @@ class Enemy {
   List<(int, int)> _path = [];
   int _pathIndex = 0;
 
+  double damageFlash = 0.0;
+
+  bool get isDead => hp <= 0;
+
   Enemy({required this.map, required this.x, required this.y})
       : _pathfinder = Pathfinder(map: map);
 
+  void takeDamage(double amount) {
+    hp = (hp - amount).clamp(0, maxHp);
+    damageFlash = 1.0;
+  }
+
   void update(double dt, Player player) {
+    if (isDead) return;
+
+    damageFlash = (damageFlash - dt * 5.0).clamp(0.0, 1.0);
+
     final canSee = _hasLineOfSight(player);
 
     switch (state) {
@@ -76,15 +91,13 @@ class Enemy {
     if (_path.isEmpty || _pathIndex >= _path.length) return;
 
     final (targetCol, targetRow) = _path[_pathIndex];
-
     final targetX = (targetCol + 0.5) * map.cellSize;
     final targetY = (targetRow + 0.5) * map.cellSize;
-
     final dx = targetX - x;
     final dy = targetY - y;
     final len = sqrt(dx * dx + dy * dy);
-
     final threshold = map.cellSize * 0.5;
+
     if (len < threshold) {
       _pathIndex++;
       return;
@@ -100,18 +113,18 @@ class Enemy {
     final ey = y / cs;
     final px = player.x / cs;
     final py = player.y / cs;
-
     final dist = sqrt(pow(px - ex, 2) + pow(py - ey, 2));
+
     if (dist > _sightRadius) return false;
 
     final steps = (dist * 2).ceil().clamp(4, 64);
     for (int i = 1; i < steps; i++) {
       final t = i / steps;
-      final cx = ex + (px - ex) * t;
-      final cy = ey + (py - ey) * t;
-      if (map.isWall(cx.floor(), cy.floor())) return false;
+      if (map.isWall(
+        (ex + (px - ex) * t).floor(),
+        (ey + (py - ey) * t).floor(),
+      )) return false;
     }
-
     return true;
   }
 

@@ -1,6 +1,7 @@
 import 'package:doom_dart/components/player.dart';
 import 'package:doom_dart/renderer/game_renderer.dart';
 import 'package:doom_dart/renderer/raycaster.dart';
+import 'package:doom_dart/systems/combat_system.dart';
 import 'package:doom_dart/systems/enemy_manager.dart';
 import 'package:doom_dart/world/maze_generator.dart';
 import 'package:doom_dart/world/maze_map.dart';
@@ -16,6 +17,7 @@ class DoomGame extends FlameGame with KeyboardEvents {
   late final Raycaster raycaster;
   late final GameRenderer renderer;
   late final EnemyManager enemyManager;
+  late final CombatSystem combatSystem;
 
   late final JoystickComponent _joystickLeft;
   late final JoystickComponent _joystickRight;
@@ -24,11 +26,16 @@ class DoomGame extends FlameGame with KeyboardEvents {
   bool _keyBackward = false;
   bool _keyLeft = false;
   bool _keyRight = false;
+  bool _keyShooting = false;
+
+  static const double _shootCooldown = 0.4;
+  double _shootTimer = 0;
 
   @override
   Future<void> onLoad() async {
     map = MazeGenerator(cols: 8, rows: 8).generate();
     player = Player(map: map);
+    combatSystem = CombatSystem(map: map);
 
     enemyManager = EnemyManager(map: map);
     enemyManager.spawnEnemies(
@@ -77,11 +84,43 @@ class DoomGame extends FlameGame with KeyboardEvents {
       anchor: Anchor.bottomRight,
     );
     add(_joystickRight);
+
+    final shootButton = HudButtonComponent(
+      button: CircleComponent(
+        radius: 32,
+        paint: Paint()..color = const Color(0xCCFF0000),
+      ),
+      margin: const EdgeInsets.only(right: 160, bottom: 50),
+      anchor: Anchor.bottomRight,
+      onPressed: _tryShoot,
+    );
+    add(shootButton);
+  }
+
+  void _tryShoot() {
+    if (_shootTimer > 0) return;
+    _shootTimer = _shootCooldown;
+
+    final result = combatSystem.shoot(
+      player: player,
+      enemies: enemyManager.enemies,
+    );
+
+    if (result == ShotResult.hit) {
+      player.onHitEnemy();
+      enemyManager.enemies.removeWhere((e) => e.isDead);
+    }
   }
 
   @override
   void update(double dt) {
     super.update(dt);
+
+    if (player.isDead) return;
+
+    if (_shootTimer > 0) _shootTimer -= dt;
+
+    if (_keyShooting) _tryShoot();
 
     const deadZone = 0.2;
     final ly = _joystickLeft.relativeDelta.y;
@@ -94,6 +133,12 @@ class DoomGame extends FlameGame with KeyboardEvents {
 
     player.update(dt);
     enemyManager.update(dt, player);
+
+    combatSystem.updateMelee(
+      player: player,
+      enemies: enemyManager.enemies,
+      dt: dt,
+    );
   }
 
   @override
@@ -109,6 +154,7 @@ class DoomGame extends FlameGame with KeyboardEvents {
         keysPressed.contains(LogicalKeyboardKey.arrowLeft);
     _keyRight = keysPressed.contains(LogicalKeyboardKey.keyD) ||
         keysPressed.contains(LogicalKeyboardKey.arrowRight);
+    _keyShooting = keysPressed.contains(LogicalKeyboardKey.space);
 
     return KeyEventResult.handled;
   }
