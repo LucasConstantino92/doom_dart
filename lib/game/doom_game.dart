@@ -1,6 +1,7 @@
 import 'package:doom_dart/components/player.dart';
 import 'package:doom_dart/renderer/game_renderer.dart';
 import 'package:doom_dart/renderer/raycaster.dart';
+import 'package:doom_dart/systems/enemy_manager.dart';
 import 'package:doom_dart/world/maze_generator.dart';
 import 'package:doom_dart/world/maze_map.dart';
 import 'package:flame/components.dart';
@@ -14,6 +15,7 @@ class DoomGame extends FlameGame with KeyboardEvents {
   late final MazeMap map;
   late final Raycaster raycaster;
   late final GameRenderer renderer;
+  late final EnemyManager enemyManager;
 
   late final JoystickComponent _joystickLeft;
   late final JoystickComponent _joystickRight;
@@ -26,14 +28,28 @@ class DoomGame extends FlameGame with KeyboardEvents {
   @override
   Future<void> onLoad() async {
     map = MazeGenerator(cols: 8, rows: 8).generate();
-
     player = Player(map: map);
 
+    enemyManager = EnemyManager(map: map);
+    enemyManager.spawnEnemies(
+      count: 5,
+      playerX: player.x,
+      playerY: player.y,
+    );
+
     raycaster = Raycaster(map: map);
+    renderer = GameRenderer(
+      player: player,
+      raycaster: raycaster,
+      enemyManager: enemyManager,
+      map: map,
+    );
 
-    renderer = GameRenderer(player: player, raycaster: raycaster);
     add(renderer);
+    _setupJoysticks();
+  }
 
+  void _setupJoysticks() {
     _joystickLeft = JoystickComponent(
       knob: CircleComponent(
         radius: 24,
@@ -77,6 +93,7 @@ class DoomGame extends FlameGame with KeyboardEvents {
     player.turningRight = _keyRight || rx > deadZone;
 
     player.update(dt);
+    enemyManager.update(dt, player);
   }
 
   @override
