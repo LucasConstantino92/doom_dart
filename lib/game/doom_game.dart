@@ -1,17 +1,19 @@
-import 'package:doom_dart/renderer/map_renderer.dart';
-import 'package:doom_dart/renderer/maze_generator.dart';
-import 'package:doom_dart/renderer/maze_map.dart';
+import 'package:doom_dart/components/player.dart';
+import 'package:doom_dart/renderer/game_renderer.dart';
+import 'package:doom_dart/renderer/raycaster.dart';
+import 'package:doom_dart/world/maze_generator.dart';
+import 'package:doom_dart/world/maze_map.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flame/input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../components/player.dart';
-
 class DoomGame extends FlameGame with KeyboardEvents {
   late final Player player;
   late final MazeMap map;
+  late final Raycaster raycaster;
+  late final GameRenderer renderer;
 
   late final JoystickComponent _joystickLeft;
   late final JoystickComponent _joystickRight;
@@ -25,10 +27,12 @@ class DoomGame extends FlameGame with KeyboardEvents {
   Future<void> onLoad() async {
     map = MazeGenerator(cols: 8, rows: 8).generate();
 
-    add(MapRenderer(map: map));
-
     player = Player(map: map);
-    add(player);
+
+    raycaster = Raycaster(map: map);
+
+    renderer = GameRenderer(player: player, raycaster: raycaster);
+    add(renderer);
 
     _joystickLeft = JoystickComponent(
       knob: CircleComponent(
@@ -64,16 +68,15 @@ class DoomGame extends FlameGame with KeyboardEvents {
     super.update(dt);
 
     const deadZone = 0.2;
-
     final ly = _joystickLeft.relativeDelta.y;
-
     final rx = _joystickRight.relativeDelta.x;
 
     player.movingForward = _keyForward || ly < -deadZone;
     player.movingBackward = _keyBackward || ly > deadZone;
-
     player.turningLeft = _keyLeft || rx < -deadZone;
     player.turningRight = _keyRight || rx > deadZone;
+
+    player.update(dt);
   }
 
   @override
@@ -85,7 +88,6 @@ class DoomGame extends FlameGame with KeyboardEvents {
         keysPressed.contains(LogicalKeyboardKey.arrowUp);
     _keyBackward = keysPressed.contains(LogicalKeyboardKey.keyS) ||
         keysPressed.contains(LogicalKeyboardKey.arrowDown);
-
     _keyLeft = keysPressed.contains(LogicalKeyboardKey.keyA) ||
         keysPressed.contains(LogicalKeyboardKey.arrowLeft);
     _keyRight = keysPressed.contains(LogicalKeyboardKey.keyD) ||
